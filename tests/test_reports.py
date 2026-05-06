@@ -53,9 +53,9 @@ def test_build_daily_report_renders_body(tmp_path):
         assert report.job_total == 2
         assert report.job_success_rate == 0.5
         body = render_daily_report_text(report)
-        assert "Server Report (daily) 2026-05-05" in body
-        assert "example-owner/life-bot: 2" in body
-        assert "ジョブ成功率: 50%" in body
+        assert "【今日のサーバーレポート】2026-05-05" in body
+        assert "life-bot: 2 commits" in body
+        assert "GitHub活動: 1 repo / 2 commits" in body
         types = [
             row["event_type"]
             for row in conn.execute("SELECT event_type FROM report_events").fetchall()
@@ -88,10 +88,45 @@ def test_build_weekly_report_renders_body(tmp_path):
         assert "example-owner/ai-feed-bot" not in report.active_repositories
         assert report.backup_success_count == 1
         body = render_weekly_report_text(report)
-        assert "Server Report (weekly) since 2026-05-04" in body
-        assert "weekly commit count: 1" in body
+        assert "【今週の活動サマリー】2026-05-04〜" in body
+        assert "合計 commits: 1" in body
+        assert "ai-feed-bot" not in report.active_repositories
         types = [
             row["event_type"]
             for row in conn.execute("SELECT event_type FROM report_events").fetchall()
         ]
         assert "report.weekly.built" in types
+
+
+def test_daily_report_groups_zero_commit_repos_and_unlinked_jobs(tmp_path):
+    with connect(str(tmp_path / "r.db")) as conn:
+        run_migrations(conn)
+        client = FakeGitHubClient({"owner/active": [{"sha": "a"}], "owner/idle": []})
+        report = build_daily_report(
+            conn,
+            github_client=client,
+            repositories=("owner/active", "owner/idle"),
+            metrics=ServerMetrics(disk=None, memory=None, load_average=None),
+            target_date="2026-05-05",
+        )
+    body = render_daily_report_text(report)
+    assert "active: 1 commits" in body
+    assert "動きなし:" in body
+    assert "idle" in body
+    assert "wrapper未連携" in body
+
+
+def test_weekly_report_mentions_backup_missing_when_zero(tmp_path):
+    with connect(str(tmp_path / "r.db")) as conn:
+        run_migrations(conn)
+        client = FakeGitHubClient({"owner/life-bot": [{"sha": "a"}]})
+        report = build_weekly_report(
+            conn,
+            github_client=client,
+            repositories=("owner/life-bot",),
+            target_week_start="2026-05-04",
+        )
+    body = render_weekly_report_text(report)
+    assert "backup成功記録: 0" in body
+    assert "backup: 成功記録なし" in body
+    assert "job_runs: wrapper未連携" in body

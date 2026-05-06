@@ -14,6 +14,7 @@ class DailyReport:
     commit_counts: tuple[tuple[str, int | None], ...]
     server_metrics_text: str
     alerts: tuple[str, ...]
+    backup_success_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class WeeklyReport:
     target_week_start: str
     weekly_commit_count: int
     active_repositories: tuple[str, ...]
+    commit_counts: tuple[tuple[str, int | None], ...]
     job_success_rate: float | None
     job_total: int
     failed_jobs: tuple[JobRun, ...]

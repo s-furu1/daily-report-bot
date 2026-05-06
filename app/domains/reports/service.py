@@ -58,6 +58,11 @@ def build_daily_report(
     alerts = tuple(
         f"job failed: {run.job_name} ({run.status})" for run in failed
     )
+    backup_success_count = sum(
+        1
+        for run in runs
+        if run.status == "success" and "backup" in run.job_name.lower()
+    )
     record_event(
         conn,
         "report.daily.built",
@@ -72,6 +77,7 @@ def build_daily_report(
         commit_counts=commit_counts,
         server_metrics_text=format_server_metrics(metrics),
         alerts=alerts,
+        backup_success_count=backup_success_count,
     )
 
 
@@ -112,6 +118,7 @@ def build_weekly_report(
         target_week_start=target_week_start,
         weekly_commit_count=weekly_total,
         active_repositories=active_repos,
+        commit_counts=commit_counts,
         job_success_rate=success_rate,
         job_total=len(runs),
         failed_jobs=tuple(failed),
@@ -121,59 +128,106 @@ def build_weekly_report(
 
 
 def render_daily_report_text(report: DailyReport) -> str:
-    lines = [f"【Server Report (daily) {report.target_date}】", ""]
-    if report.job_success_rate is None:
-        lines.append("ジョブ成功率: 集計対象なし")
+    active, inactive = split_commit_counts(report.commit_counts)
+    total_commits = sum(count for _repo, count in active)
+    lines = [f"【今日のサーバーレポート】{report.target_date}", ""]
+    lines.append("概要:")
+    lines.append(f"- GitHub活動: {len(active)} repo / {total_commits} commits")
+    lines.append(
+        "- ジョブ: "
+        + ("wrapper未連携" if report.job_total == 0 else f"{report.job_total} runs")
+    )
+    lines.append("- サーバー: 正常")
+    lines.append(
+        "- 注意: "
+        + ("backup成功記録なし" if report.backup_success_count == 0 else "なし")
+    )
+    lines.append("")
+    lines.append("今日動いたリポジトリ:")
+    if active:
+        for index, (repo, count) in enumerate(active[:10], start=1):
+            lines.append(f"{index}. {short_repo(repo)}: {count} commits")
     else:
-        lines.append(
-            f"ジョブ成功率: {int(round(report.job_success_rate * 100))}%"
-            f" ({report.job_total} runs)"
-        )
+        lines.append("なし")
+    if inactive:
+        lines.append("")
+        lines.append("動きなし:")
+        lines.append(", ".join(short_repo(repo) for repo in inactive[:10]))
     if report.failed_jobs:
+        lines.append("")
         lines.append("失敗ジョブ:")
         for run in report.failed_jobs[:5]:
-            lines.append(
-                f"  - {run.job_name} ({run.status}, exit={run.exit_code})"
-            )
-    else:
-        lines.append("失敗ジョブ: 0")
+            lines.append(f"- {run.job_name} ({run.status}, exit={run.exit_code})")
     lines.append("")
-    lines.append("GitHub commits:")
-    if not report.commit_counts:
-        lines.append("  (リポジトリ未設定)")
-    for repo, count in report.commit_counts:
-        if count is None:
-            lines.append(f"  - {repo}: unavailable")
-        else:
-            lines.append(f"  - {repo}: {count}")
-    lines.append("")
-    lines.append("Server metrics:")
-    lines.append(report.server_metrics_text)
-    if report.alerts:
+    lines.append("サーバー状態:")
+    lines.extend(format_server_metrics_for_report(report.server_metrics_text))
+    if report.job_total == 0:
         lines.append("")
-        lines.append("Alerts:")
-        for alert in report.alerts[:5]:
-            lines.append(f"  - {alert}")
+        lines.append("補足:")
+        lines.append("cron/job記録はまだありません。")
+        lines.append("run-and-log.py 経由に置き換えると成功率を集計できます。")
     return "\n".join(lines)
 
 
 def render_weekly_report_text(report: WeeklyReport) -> str:
-    lines = [f"【Server Report (weekly) since {report.target_week_start}】", ""]
-    lines.append(f"weekly commit count: {report.weekly_commit_count}")
-    lines.append(
-        "active repositories: "
-        + (", ".join(report.active_repositories) if report.active_repositories else "(なし)")
-    )
-    if report.job_success_rate is None:
-        lines.append("ジョブ成功率: 集計対象なし")
+    active, _inactive = split_commit_counts(report.commit_counts)
+    lines = [f"【今週の活動サマリー】{report.target_week_start}〜", ""]
+    lines.append("概要:")
+    lines.append(f"- 合計 commits: {report.weekly_commit_count}")
+    lines.append(f"- active repos: {len(report.active_repositories)}")
+    lines.append(f"- failed jobs: {len(report.failed_jobs)}")
+    lines.append(f"- backup成功記録: {report.backup_success_count}")
+    lines.append("")
+    lines.append("主に動いたリポジトリ:")
+    if active:
+        for index, (repo, count) in enumerate(active[:10], start=1):
+            lines.append(f"{index}. {short_repo(repo)}: {count} commits")
     else:
-        lines.append(
-            f"ジョブ成功率: {int(round(report.job_success_rate * 100))}%"
-            f" ({report.job_total} runs)"
-        )
-    lines.append(f"backup success count: {report.backup_success_count}")
+        lines.append("なし")
+    lines.append("")
+    lines.append("未連携:")
+    if report.job_total == 0:
+        lines.append("- job_runs: wrapper未連携")
+    if report.backup_success_count == 0:
+        lines.append("- backup: 成功記録なし")
     if report.notable_alerts:
+        lines.append("")
         lines.append("notable alerts:")
         for alert in report.notable_alerts:
-            lines.append(f"  - {alert}")
+            lines.append(f"- {alert}")
     return "\n".join(lines)
+
+
+def split_commit_counts(
+    commit_counts: tuple[tuple[str, int | None], ...]
+) -> tuple[list[tuple[str, int]], list[str]]:
+    active = sorted(
+        [(repo, count) for repo, count in commit_counts if count and count > 0],
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    inactive = [repo for repo, count in commit_counts if count == 0]
+    return active, inactive
+
+
+def short_repo(repo: str) -> str:
+    return repo.rsplit("/", maxsplit=1)[-1]
+
+
+def format_server_metrics_for_report(metrics_text: str) -> list[str]:
+    lines = []
+    for line in metrics_text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("disk:"):
+            text = stripped.removeprefix("disk: ").replace("used ", "")
+            text = text.replace("(free ", "（空き ").replace(")", "）")
+            lines.append("- Disk: " + text + " 使用中")
+        elif stripped.startswith("memory:"):
+            text = stripped.removeprefix("memory: ").replace("available ", "")
+            lines.append("- Memory: " + text + " 空き")
+        elif stripped.startswith("load average:"):
+            text = stripped.removeprefix("load average: ").replace(" ", " / ")
+            lines.append("- Load: " + text)
+        elif stripped:
+            lines.append("- " + stripped)
+    return lines or ["- unavailable"]
