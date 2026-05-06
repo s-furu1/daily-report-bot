@@ -102,6 +102,8 @@ worker を有効にする場合:
 DAILY_REPORT_ENABLE_WORKER=true python -m app.main
 ```
 
+コンテナ運用では `DAILY_REPORT_ENABLE_SLACK=true` または `DAILY_REPORT_ENABLE_WORKER=true` の少なくとも一方を有効にしてください。どちらも無効、または有効化した機能が必要な環境変数不足で起動できない場合、理由をログに出して安全に終了します。
+
 ## 環境変数
 
 - `APP_ENV`
