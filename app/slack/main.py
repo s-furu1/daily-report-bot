@@ -10,6 +10,7 @@ from app.core.db import connect, run_migrations
 from app.core.time import utc_now
 from app.domains.reports.service import build_daily_report, build_weekly_report
 from app.github.client import GitHubClient
+from app.github.repositories import resolve_repositories
 from app.metrics.server import collect_server_metrics
 from app.slack.handlers import (
     handle_report_github_show,
@@ -55,23 +56,25 @@ def register_action_handlers(
 
     def _default_today(conn: sqlite3.Connection):
         github_client = GitHubClient(settings.github_token)
+        repositories = resolve_repositories(conn, github_client)
         target_date = utc_now().strftime("%Y-%m-%d")
         return build_daily_report(
             conn,
             github_client=github_client,
-            repositories=settings.repositories,
+            repositories=repositories,
             metrics=collect_server_metrics(),
             target_date=target_date,
         )
 
     def _default_weekly(conn: sqlite3.Connection):
         github_client = GitHubClient(settings.github_token)
+        repositories = resolve_repositories(conn, github_client)
         now = utc_now()
         week_start = (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
         return build_weekly_report(
             conn,
             github_client=github_client,
-            repositories=settings.repositories,
+            repositories=repositories,
             target_week_start=week_start,
         )
 

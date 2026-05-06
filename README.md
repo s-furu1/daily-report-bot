@@ -18,10 +18,10 @@ daily-report-bot は、ホームサーバーの運用状況と開発活動を集
 GitHub API を使います。ローカル `git log` には依存しません。
 
 - token は `GITHUB_TOKEN` 環境変数で受け取り、コードに値を書きません
-- 対象リポジトリは `DAILY_REPORT_REPOSITORIES` をカンマ区切りで指定します
-  - 例: `<owner>/life-bot,<owner>/ai-feed-bot,<owner>/daily-report-bot,<owner>/homeserver`
-- token 未設定時は commit 集計を skip し、`github.commit.failed` イベントを記録します
-- アプリ全体は落としません
+- authenticated user の repositories API で、token から取得できる全リポジトリを対象にします
+- private repo、archived repo、fork repo も token 権限で取得できるなら対象にします
+- repo 一覧取得に失敗した場合は `github.repositories.failed` イベントを記録し、集計対象なしとして続行します
+- token 未設定時も repo 一覧取得失敗として扱い、アプリ全体は落としません
 
 ## run-and-log wrapper
 
@@ -115,7 +115,6 @@ DAILY_REPORT_ENABLE_WORKER=true python -m app.main
 - `DAILY_REPORT_WEEKLY_DAY`
 - `DAILY_REPORT_WEEKLY_HOUR`
 - `DAILY_REPORT_WEEKLY_MINUTE`
-- `DAILY_REPORT_REPOSITORIES`
 - `GITHUB_TOKEN`
 - `SLACK_BOT_TOKEN`
 - `SLACK_APP_TOKEN`

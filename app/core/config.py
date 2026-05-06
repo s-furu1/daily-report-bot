@@ -18,13 +18,6 @@ def _env_int(name: str, default: int) -> int:
     return int(value)
 
 
-def _env_repos(name: str) -> tuple[str, ...]:
-    value = os.getenv(name)
-    if not value:
-        return ()
-    return tuple(item.strip() for item in value.split(",") if item.strip())
-
-
 @dataclass(frozen=True)
 class Settings:
     app_env: str
@@ -38,7 +31,6 @@ class Settings:
     weekly_day: str
     weekly_hour: int
     weekly_minute: int
-    repositories: tuple[str, ...]
     github_token: str | None
     slack_bot_token: str | None
     slack_app_token: str | None
@@ -60,7 +52,6 @@ def load_settings() -> Settings:
         weekly_day=os.getenv("DAILY_REPORT_WEEKLY_DAY", "MON").strip().upper(),
         weekly_hour=_env_int("DAILY_REPORT_WEEKLY_HOUR", 8),
         weekly_minute=_env_int("DAILY_REPORT_WEEKLY_MINUTE", 15),
-        repositories=_env_repos("DAILY_REPORT_REPOSITORIES"),
         github_token=os.getenv("GITHUB_TOKEN") or None,
         slack_bot_token=os.getenv("SLACK_BOT_TOKEN") or None,
         slack_app_token=os.getenv("SLACK_APP_TOKEN") or None,
