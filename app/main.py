@@ -9,6 +9,15 @@ from app.domains.events.service import record_event
 from app.worker.main import start_worker_if_enabled
 
 
+def start_web_if_enabled(settings) -> bool:
+    if not settings.enable_web:
+        return False
+    from app.web.main import main as start_web
+
+    start_web()
+    return True
+
+
 def wait_forever() -> None:
     stop_event = threading.Event()
 
@@ -35,12 +44,14 @@ def main() -> int:
         started = start_slack_if_configured(settings) or started
 
     started = start_worker_if_enabled(settings) or started
-    if started:
+    if settings.enable_web:
+        start_web_if_enabled(settings)
+    elif started:
         wait_forever()
     else:
         print(
-            "daily-report-bot stopped: both DAILY_REPORT_ENABLE_SLACK and "
-            "DAILY_REPORT_ENABLE_WORKER are disabled or unavailable"
+            "daily-report-bot stopped: DAILY_REPORT_ENABLE_SLACK, "
+            "DAILY_REPORT_ENABLE_WORKER, and DAILY_REPORT_ENABLE_WEB are disabled or unavailable"
         )
     return 0
 

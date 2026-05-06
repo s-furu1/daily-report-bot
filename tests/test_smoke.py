@@ -38,3 +38,15 @@ def test_main_calls_slack_when_enabled(tmp_path, monkeypatch):
 
     assert main() == 0
     assert calls == [True]
+
+
+def test_main_starts_web_when_enabled_without_slack(tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setenv("DAILY_REPORT_DB_PATH", str(tmp_path / "daily-report.db"))
+    monkeypatch.setenv("DAILY_REPORT_ENABLE_WEB", "true")
+    monkeypatch.setenv("DAILY_REPORT_ENABLE_WORKER", "true")
+    monkeypatch.delenv("DAILY_REPORT_ENABLE_SLACK", raising=False)
+    monkeypatch.setattr("app.main.start_web_if_enabled", lambda settings: calls.append(settings.enable_web) or True)
+
+    assert main() == 0
+    assert calls == [True]

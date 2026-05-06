@@ -132,14 +132,6 @@ def start_slack_if_configured(settings: Settings) -> bool:
         signing_secret=settings.slack_signing_secret,
     )
 
-    @app.command("/report")
-    def report_command(ack, respond, command):
-        ack()
-        if command.get("text", "").strip() == "ping":
-            respond("pong")
-        else:
-            respond("/report ping のみ利用できます")
-
     register_action_handlers(app, settings)
 
     SocketModeHandler(app, settings.slack_app_token).start()

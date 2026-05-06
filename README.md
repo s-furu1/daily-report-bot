@@ -1,6 +1,6 @@
 # daily-report-bot
 
-daily-report-bot は、ホームサーバーの運用状況と開発活動を集計して Slack に通知するアプリです。
+daily-report-bot は、ホームサーバーの運用状況と開発活動を集計する backend/worker アプリです。Slack への投稿、ボタン、固定パネル管理は life-bot が internal API 経由で行います。
 
 このアプリは 1アプリ1コンテナで動かします。Slack / worker / wrapper はコード上で責務分離しますが、コンテナは分割しません。
 
@@ -10,8 +10,8 @@ daily-report-bot は、ホームサーバーの運用状況と開発活動を集
 - GitHub API による commit 集計
 - ディスク / メモリ / load average の server metrics
 - 日次 / 週次レポートの生成
-- Slack `#server-report` 固定パネルでのレポート参照
-- Slack `#server-alert` への重要通知 (このフェーズでは関数のみ)
+- internal API 経由でのレポート参照
+- `#server-alert` への重要通知は life-bot 側の責務
 
 ## GitHub commit 集計
 
@@ -61,26 +61,17 @@ DB は `DAILY_REPORT_DB_PATH` を使います。
 
 metrics 取得の失敗でアプリ全体は落としません。
 
-## Slack UI
+## Slack gateway
 
-通常操作は `#server-report` 固定パネルとボタンで行います。
-slash command は主 UI にしません。`/report ping` だけが管理疎通確認用に提供されます。
+Slack App と slash command は life-bot のみです。daily-report-bot は実運用で Slack に直接接続しません。
 
-固定パネルの操作:
+life-bot から呼ばれる internal API:
 
-- 今日のレポート
-- 週次レポート
-- ジョブ状況
-- GitHub活動
-
-action_id:
-
-- `report.today.show`
-- `report.week.show`
-- `report.jobs.show`
-- `report.github.show`
-
-`#server-alert` は重要通知専用です。このフェーズでは alert 通知用の関数のみを用意し、過剰には通知しません。
+- `GET /healthz`
+- `GET /internal/reports/today`
+- `GET /internal/reports/week`
+- `GET /internal/reports/jobs`
+- `GET /internal/reports/github`
 
 Slack token / secret はコードや `.env.example` に書きません。
 
@@ -90,10 +81,10 @@ Slack token / secret はコードや `.env.example` に書きません。
 DAILY_REPORT_DB_PATH=/tmp/daily-report.db python -m app.main
 ```
 
-Slack を有効にする場合:
+internal APIを有効にする場合:
 
 ```bash
-DAILY_REPORT_ENABLE_SLACK=true python -m app.main
+DAILY_REPORT_ENABLE_WEB=true python -m app.main
 ```
 
 worker を有効にする場合:
@@ -102,15 +93,18 @@ worker を有効にする場合:
 DAILY_REPORT_ENABLE_WORKER=true python -m app.main
 ```
 
-コンテナ運用では `DAILY_REPORT_ENABLE_SLACK=true` または `DAILY_REPORT_ENABLE_WORKER=true` の少なくとも一方を有効にしてください。どちらも無効、または有効化した機能が必要な環境変数不足で起動できない場合、理由をログに出して安全に終了します。
+コンテナ運用では `DAILY_REPORT_ENABLE_SLACK=false`、`DAILY_REPORT_ENABLE_WORKER=true`、`DAILY_REPORT_ENABLE_WEB=true` を前提にします。internal API は Docker network 内だけで使い、host port は公開しません。
 
 ## 環境変数
 
 - `APP_ENV`
 - `LOG_LEVEL`
 - `DAILY_REPORT_DB_PATH`
-- `DAILY_REPORT_ENABLE_SLACK`
+- `DAILY_REPORT_ENABLE_SLACK` (deprecated; production は `false`)
 - `DAILY_REPORT_ENABLE_WORKER`
+- `DAILY_REPORT_ENABLE_WEB`
+- `DAILY_REPORT_WEB_HOST`
+- `DAILY_REPORT_WEB_PORT`
 - `DAILY_REPORT_TIMEZONE`
 - `DAILY_REPORT_DAILY_HOUR`
 - `DAILY_REPORT_DAILY_MINUTE`
@@ -118,11 +112,6 @@ DAILY_REPORT_ENABLE_WORKER=true python -m app.main
 - `DAILY_REPORT_WEEKLY_HOUR`
 - `DAILY_REPORT_WEEKLY_MINUTE`
 - `GITHUB_TOKEN`
-- `SLACK_BOT_TOKEN`
-- `SLACK_APP_TOKEN`
-- `SLACK_SIGNING_SECRET`
-- `SLACK_CHANNEL_SERVER_REPORT`
-- `SLACK_CHANNEL_SERVER_ALERT`
 
 secret 実値は `.env.example`、README、コードに書きません。
 

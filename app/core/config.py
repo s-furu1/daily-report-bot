@@ -25,6 +25,9 @@ class Settings:
     daily_report_db_path: str
     enable_slack: bool
     enable_worker: bool
+    enable_web: bool
+    web_host: str
+    web_port: int
     timezone: str
     daily_hour: int
     daily_minute: int
@@ -46,6 +49,9 @@ def load_settings() -> Settings:
         daily_report_db_path=os.getenv("DAILY_REPORT_DB_PATH", "/data/daily-report.db"),
         enable_slack=_env_bool("DAILY_REPORT_ENABLE_SLACK", False),
         enable_worker=_env_bool("DAILY_REPORT_ENABLE_WORKER", False),
+        enable_web=_env_bool("DAILY_REPORT_ENABLE_WEB", False),
+        web_host=os.getenv("DAILY_REPORT_WEB_HOST", "0.0.0.0"),
+        web_port=_env_int("DAILY_REPORT_WEB_PORT", 8000),
         timezone=os.getenv("DAILY_REPORT_TIMEZONE", "Asia/Tokyo"),
         daily_hour=_env_int("DAILY_REPORT_DAILY_HOUR", 8),
         daily_minute=_env_int("DAILY_REPORT_DAILY_MINUTE", 0),

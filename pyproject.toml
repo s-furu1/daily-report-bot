@@ -8,11 +8,14 @@ version = "0.1.0"
 description = "Server health and dev activity daily/weekly report bot"
 requires-python = ">=3.11"
 dependencies = [
+  "fastapi>=0.115",
   "slack-bolt>=1.18.0",
+  "uvicorn>=0.34",
 ]
 
 [project.optional-dependencies]
 dev = [
+  "httpx>=0.28",
   "pytest>=8.0.0",
 ]
 
